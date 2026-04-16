@@ -3,10 +3,10 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
-local pg = lp.PlayerGui
-local Events = RS.Events
-local Items = workspace.Items
-local Inventory = lp.Inventory
+local pg = lp:WaitForChild("PlayerGui") -- Ensure PlayerGui exists
+local Events = RS:WaitForChild("Events")
+local Items = workspace:WaitForChild("Items")
+local Inventory = lp:WaitForChild("Inventory")
 
 local flags = {
     level_farm = false,
@@ -50,8 +50,10 @@ end
 
 local function getLevel()
     local gui = pg:FindFirstChild("CoreGUI")
-    if not gui then return end
-    local lvl = gui.Frame.EXPBAR.Status.Level.Value
+    if not gui or not gui:FindFirstChild("Frame") then return end
+    
+    local lvlVal = gui.Frame.EXPBAR.Status.Level
+    local lvl = lvlVal.Value
     local result = nil
     for _, q in ipairs(quests) do
         if q.Level <= lvl then result = q else break end
@@ -61,7 +63,7 @@ end
 
 local function getActiveQuest()
     for _, v in next, pg:GetChildren() do
-        if v.Name == "Quest" then
+        if v.Name == "Quest" and v:FindFirstChild("Quest") then
             local c = v.Quest:FindFirstChild("Client", true)
             if c then
                 return c.Parent and c.Parent.Name ~= "RepeatQuest" and c.Parent.Name
@@ -72,22 +74,21 @@ end
 
 local function teleport(cf, char)
     local c = char or getChar()
-    if c then
+    if c and c.PrimaryPart then
         c.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
         c.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
         c:PivotTo(cf)
     end
 end
 
+-- Anti-AFK
 task.spawn(function()
     while true do
         task.wait(900)
         local v = lp.Character
         if v then
             local h = v:FindFirstChildWhichIsA("Humanoid")
-            if h then
-                h.Jump = true
-            end
+            if h then h.Jump = true end
         end
     end
 end)
@@ -105,58 +106,19 @@ local FarmTab = Window:CreateTab("Farm", 4483362458)
 local DailyTab = Window:CreateTab("Daily Quests", 4483362458)
 local RemoteTab = Window:CreateTab("Buy Items", 4483362458)
 
-FarmTab:CreateToggle({
-    Name = "Level Farm",
-    CurrentValue = false,
-    Flag = "level_farm",
-    Callback = function(v) flags.level_farm = v end,
-})
+FarmTab:CreateToggle({ Name = "Level Farm", CurrentValue = false, Flag = "level_farm", Callback = function(v) flags.level_farm = v end })
+FarmTab:CreateToggle({ Name = "Auto Strength", CurrentValue = false, Flag = "auto_strength", Callback = function(v) flags.auto_strength = v end })
+FarmTab:CreateToggle({ Name = "Auto Prestige", CurrentValue = false, Flag = "auto_prestige", Callback = function(v) flags.auto_prestige = v end })
+FarmTab:CreateToggle({ Name = "Item Farm", CurrentValue = false, Flag = "item_farm", Callback = function(v) flags.item_farm = v end })
+FarmTab:CreateToggle({ Name = "Include Nodes", CurrentValue = false, Flag = "node_farm", Callback = function(v) flags.node_farm = v end })
 
-FarmTab:CreateToggle({
-    Name = "Auto Strength",
-    CurrentValue = false,
-    Flag = "auto_strength",
-    Callback = function(v) flags.auto_strength = v end,
-})
+DailyTab:CreateToggle({ Name = "Collect Trash (Beach)", CurrentValue = false, Flag = "daily_trash", Callback = function(v) flags.daily_trash = v end })
+DailyTab:CreateToggle({ Name = "Find Lost Cats", CurrentValue = false, Flag = "daily_cats", Callback = function(v) flags.daily_cats = v end })
 
-FarmTab:CreateToggle({
-    Name = "Auto Prestige",
-    CurrentValue = false,
-    Flag = "auto_prestige",
-    Callback = function(v) flags.auto_prestige = v end,
-})
-
-FarmTab:CreateToggle({
-    Name = "Item Farm",
-    CurrentValue = false,
-    Flag = "item_farm",
-    Callback = function(v) flags.item_farm = v end,
-})
-
-FarmTab:CreateToggle({
-    Name = "Include Nodes",
-    CurrentValue = false,
-    Flag = "node_farm",
-    Callback = function(v) flags.node_farm = v end,
-})
-
-DailyTab:CreateToggle({
-    Name = "Collect Trash (Beach)",
-    CurrentValue = false,
-    Flag = "daily_trash",
-    Callback = function(v) flags.daily_trash = v end,
-})
-
-DailyTab:CreateToggle({
-    Name = "Find Lost Cats",
-    CurrentValue = false,
-    Flag = "daily_cats",
-    Callback = function(v) flags.daily_cats = v end,
-})
-
-for _, item in next, workspace.Purchasable:GetChildren() do
-    local label = item.Nametag.NameLabel.Text
-    local click = item:FindFirstChild("ClickDetector")
+-- Shop Buttons
+for _, item in next, workspace:WaitForChild("Purchasable"):GetChildren() do
+    local label = item:FindFirstChild("Nametag") and item.Nametag:FindFirstChild("NameLabel") and item.Nametag.NameLabel.Text or item.Name
+    local click = item:FindFirstChildWhichIsA("ClickDetector")
     if click then
         RemoteTab:CreateButton({
             Name = label,
@@ -173,64 +135,24 @@ for _, item in next, workspace.Purchasable:GetChildren() do
     end
 end
 
-task.spawn(function()
-    while true do
-        task.wait(120)
-        table.clear(skipList)
-    end
-end)
-
+-- Stats Loop (Fixes "Call nil value" by checking existence)
 task.spawn(function()
     while true do
         task.wait(2)
-        if flags.auto_strength then
-            local gui = pg:FindFirstChild("CoreGUI")
-            if gui then
-                gui.Stats.Stats.Stats:InvokeServer("Strength", gui.Stats.Stats.aSkillPoints.Text:match("%d+"))
-            end
-        end
-        if flags.auto_prestige then
-            local gui = pg:FindFirstChild("CoreGUI")
-            if gui then
-                if gui.Frame.EXPBAR.Status.Level.Value == 100 then
-                    Events.Prestige:InvokeServer()
+        local gui = pg:FindFirstChild("CoreGUI")
+        if gui then
+            if flags.auto_strength then
+                local remote = gui:FindFirstChild("Stats") and gui.Stats:FindFirstChild("Stats") and gui.Stats.Stats:FindFirstChild("Stats")
+                if remote and remote:IsA("RemoteFunction") then
+                    pcall(function()
+                        remote:InvokeServer("Strength", gui.Stats.Stats.aSkillPoints.Text:match("%d+"))
+                    end)
                 end
             end
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if flags.daily_trash then
-            local trashFolder = workspace.DailyQuestCollectibles.BeachTrash
-            for _, trash in next, trashFolder:GetChildren() do
-                if not flags.daily_trash then break end
-                local prompt = trash:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then
-                    local char = getChar()
-                    if char then
-                        teleport(trash:GetPivot(), char)
-                        fireproximityprompt(prompt)
-                        task.wait(0.1)
-                    end
-                end
-            end
-        end
-        if flags.daily_cats then
-            local catFolder = workspace.DailyQuestCollectibles.TreeCat
-            for _, cat in next, catFolder:GetChildren() do
-                if not flags.daily_cats then break end
-                if cat.Name == "Felix" then
-                    local prompt = cat:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt then
-                        local char = getChar()
-                        if char then
-                            teleport(cat:GetPivot(), char)
-                            fireproximityprompt(prompt)
-                            task.wait(0.1)
-                        end
+            if flags.auto_prestige then
+                if gui:FindFirstChild("Frame") and gui.Frame.EXPBAR.Status.Level.Value == 100 then
+                    if Events:FindFirstChild("Prestige") then
+                        pcall(function() Events.Prestige:InvokeServer() end)
                     end
                 end
             end
@@ -238,91 +160,7 @@ task.spawn(function()
     end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait()
-        if not flags.item_farm then continue end
-        local char = getChar()
-        if not char then continue end
-
-        local normal = {}
-        local nodes = {}
-
-        for _, obj in next, Items:GetChildren() do
-            local item = obj:FindFirstChildWhichIsA("Model") or (not obj.Name:match("%d") and obj)
-            if not item then continue end
-            if table.find(blacklist, item.Name) then continue end
-            if table.find(skipList, item) then continue end
-
-            local name = item.Name
-            local itemCap = cap
-            local special = nil
-
-            for k, v in next, specialItems do
-                if k == name or v.Name == name then special = v break end
-            end
-
-            if special then name = special.Name or name; itemCap = special.ActualCap end
-
-            local slot = Inventory:FindFirstChild(name)
-            if slot and slot.Value >= itemCap then continue end
-
-            if item.Name == "MiningNode" then
-                table.insert(nodes, item)
-            else
-                table.insert(normal, item)
-            end
-        end
-
-        if #normal > 0 then
-            local target = normal[#normal]
-            if target:IsDescendantOf(workspace) then
-                local alive = true
-                local t = tick()
-                while alive and target:IsDescendantOf(workspace) and flags.item_farm do
-                    task.wait()
-                    alive = (tick() - t) < 3
-                    char = getChar()
-                    if not char then break end
-                    teleport(target:GetPivot(), char)
-                    local touch = target:FindFirstChildWhichIsA("TouchTransmitter", true)
-                    if touch then
-                        firetouchinterest(char.PrimaryPart, touch.Parent, 0)
-                        firetouchinterest(char.PrimaryPart, touch.Parent, 1)
-                    else
-                        local click = target:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then fireclickdetector(click) end
-                    end
-                end
-                if not alive then table.insert(skipList, target) end
-            end
-        elseif flags.node_farm and #nodes > 0 then
-            for _, node in next, nodes do
-                if node:FindFirstChild("ItemSpawn") then
-                    char = getChar()
-                    if char then
-                        local pickaxe = lp.Backpack:FindFirstChild("Pickaxe") or char:FindFirstChild("Pickaxe")
-                        if pickaxe then
-                            local prompt = node:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            local alive = true
-                            local t = tick()
-                            while alive and prompt and prompt.Enabled and flags.item_farm and flags.node_farm do
-                                alive = (tick() - t) < 7
-                                char = getChar()
-                                if not char then break end
-                                teleport(node:GetPivot(), char)
-                                pickaxe.Parent = char
-                                fireproximityprompt(prompt)
-                                task.wait()
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
+-- Level Farm Loop
 task.spawn(function()
     while true do
         task.wait()
@@ -337,13 +175,16 @@ task.spawn(function()
         local questName = quest.InternalName or quest.Giver:gsub(" ", "")
 
         if not active or active ~= questName then
-            local giver = workspace[quest.Giver]
-            char:PivotTo(giver:GetPivot())
-            fireproximityprompt(giver.ProximityPrompt)
+            local giver = workspace:FindFirstChild(quest.Giver)
+            if giver and giver:FindFirstChild("ProximityPrompt") then
+                teleport(giver:GetPivot(), char)
+                fireproximityprompt(giver.ProximityPrompt)
+            end
         else
-            local standOut = char.Status.StandOut.Value
+            local standOut = char:FindFirstChild("Status") and char.Status:FindFirstChild("StandOut") and char.Status.StandOut.Value
             if not standOut then
-                pg.CoreGUI.Events.SummonStand:InvokeServer()
+                local summon = pg:FindFirstChild("CoreGUI") and pg.CoreGUI:FindFirstChild("Events") and pg.CoreGUI.Events:FindFirstChild("SummonStand")
+                if summon then pcall(function() summon:InvokeServer() end) end
             else
                 local bestEnemy = nil
                 local lowestHp = math.huge
@@ -358,13 +199,11 @@ task.spawn(function()
                 end
                 if bestEnemy then
                     char.Humanoid.PlatformStand = true
-                    char.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-                    char:PivotTo(bestEnemy:GetPivot() * CFrame.new(0, 0, 7) * CFrame.Angles(0, 0, 0))
+                    char:PivotTo(bestEnemy:GetPivot() * CFrame.new(0, 0, 4))
                     if (tick() - lastPunch) > 0.3 then
                         lastPunch = tick()
-                        task.spawn(function()
-                            pg.CoreGUI.StandMoves.Punch.Fire:InvokeServer()
-                        end)
+                        local punch = pg:FindFirstChild("CoreGUI") and pg.CoreGUI:FindFirstChild("StandMoves") and pg.CoreGUI.StandMoves:FindFirstChild("Punch") and pg.CoreGUI.StandMoves.Punch:FindFirstChild("Fire")
+                        if punch then pcall(function() punch:InvokeServer() end) end
                     end
                 end
             end
