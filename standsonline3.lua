@@ -156,12 +156,18 @@ DailyTab:CreateToggle({
 
 for _, item in next, workspace.Purchasable:GetChildren() do
     local label = item.Nametag.NameLabel.Text
-    local click = item:FindFirstChildWhichIsA("ClickDetector", true)
+    local click = item:FindFirstChild("ClickDetector")
     if click then
         RemoteTab:CreateButton({
             Name = label,
             Callback = function()
-                fireclickdetector(click)
+                local char = getChar()
+                if char then
+                    click.MaxActivationDistance = 50
+                    teleport(item:GetPivot(), char)
+                    task.wait(0.1)
+                    fireclickdetector(click)
+                end
             end,
         })
     end
@@ -237,137 +243,4 @@ task.spawn(function()
         task.wait()
         if not flags.item_farm then continue end
         local char = getChar()
-        if not char then continue end
-
-        local normal = {}
-        local nodes = {}
-
-        for _, obj in next, Items:GetChildren() do
-            local item = obj:FindFirstChildWhichIsA("Model") or (not obj.Name:match("%d") and obj)
-            if not item then continue end
-            if table.find(blacklist, item.Name) then continue end
-            if table.find(skipList, item) then continue end
-
-            local name = item.Name
-            local itemCap = cap
-            local special = nil
-
-            for k, v in next, specialItems do
-                if k == name or v.Name == name then special = v break end
-            end
-
-            if special then name = special.Name or name; itemCap = special.ActualCap end
-
-            local slot = Inventory:FindFirstChild(name)
-            if slot and slot.Value >= itemCap then continue end
-
-            if item.Name == "MiningNode" then
-                table.insert(nodes, item)
-            else
-                table.insert(normal, item)
-            end
-        end
-
-        if #normal > 0 then
-            local target = normal[#normal]
-            if target:IsDescendantOf(workspace) then
-                local alive = true
-                local t = tick()
-                while alive and target:IsDescendantOf(workspace) and flags.item_farm do
-                    task.wait()
-                    alive = (tick() - t) < 3
-                    char = getChar()
-                    if not char then break end
-                    teleport(target:GetPivot(), char)
-                    local touch = target:FindFirstChildWhichIsA("TouchTransmitter", true)
-                    if touch then
-                        firetouchinterest(char.PrimaryPart, touch.Parent, 0)
-                        firetouchinterest(char.PrimaryPart, touch.Parent, 1)
-                    else
-                        local click = target:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then fireclickdetector(click) end
-                    end
-                end
-                if not alive then table.insert(skipList, target) end
-            end
-        elseif flags.node_farm and #nodes > 0 then
-            for _, node in next, nodes do
-                if node:FindFirstChild("ItemSpawn") then
-                    char = getChar()
-                    if char then
-                        local pickaxe = lp.Backpack:FindFirstChild("Pickaxe") or char:FindFirstChild("Pickaxe")
-                        if pickaxe then
-                            local prompt = node:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            local alive = true
-                            local t = tick()
-                            while alive and prompt and prompt.Enabled and flags.item_farm and flags.node_farm do
-                                alive = (tick() - t) < 7
-                                char = getChar()
-                                if not char then break end
-                                teleport(node:GetPivot(), char)
-                                pickaxe.Parent = char
-                                fireproximityprompt(prompt)
-                                task.wait()
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait()
-        if not flags.level_farm then continue end
-        local char = getChar()
-        if not char then continue end
-
-        local quest = getLevel()
-        if not quest then continue end
-
-        local active = getActiveQuest()
-        local questName = quest.InternalName or quest.Giver:gsub(" ", "")
-
-        if not active or active ~= questName then
-            local giver = workspace[quest.Giver]
-            char:PivotTo(giver:GetPivot())
-            fireproximityprompt(giver.ProximityPrompt)
-        else
-            local standOut = char.Status.StandOut.Value
-            if not standOut then
-                pg.CoreGUI.Events.SummonStand:InvokeServer()
-            else
-                local bestEnemy = nil
-                local lowestHp = math.huge
-                for _, obj in next, workspace:GetChildren() do
-                    if obj.Name == quest.Enemy then
-                        local h = obj:FindFirstChildWhichIsA("Humanoid")
-                        if h and h.Health > 0 and h.Health < lowestHp then
-                            lowestHp = h.Health
-                            bestEnemy = obj
-                        end
-                    end
-                end
-                if bestEnemy then
-                    char.Humanoid.PlatformStand = true
-                    char.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-                    char:PivotTo(bestEnemy:GetPivot() * CFrame.new(0, 0, 7) * CFrame.Angles(0, 0, 0))
-                    if (tick() - lastPunch) > 0.3 then
-                        lastPunch = tick()
-                        task.spawn(function()
-                            pg.CoreGUI.StandMoves.Punch.Fire:InvokeServer()
-                        end)
-                    end
-                end
-            end
-        end
-    end
-end)
-
-Rayfield:Notify({
-    Title = "Loaded",
-    Content = "Stands Online Hub ready",
-    Duration = 3,
-})
+        if not char the
