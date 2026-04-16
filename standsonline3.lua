@@ -2,6 +2,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local vim = game:GetService("VirtualInputManager")
 local lp = Players.LocalPlayer
 local pg = lp.PlayerGui
 local Events = RS.Events
@@ -14,6 +15,8 @@ local flags = {
     auto_prestige = false,
     item_farm = false,
     node_farm = false,
+    inf_hamon = false,
+    auto_barrage = false,
 }
 
 local blacklist = {"DespairStone","rageStone","JoyStone"}
@@ -81,6 +84,12 @@ local function teleport(cf, char)
     end
 end
 
+local function pressKey(key)
+    vim:SendKeyEvent(true, key, false, game)
+    task.wait(0.1)
+    vim:SendKeyEvent(false, key, false, game)
+end
+
 task.spawn(function()
     while true do
         task.wait(900)
@@ -97,13 +106,26 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if getgenv().InfHamon then
+        if flags.inf_hamon then
             pcall(function()
                 local hb = pg.CoreGUI.StandMoves:FindFirstChild("HamonBreathing")
                 if hb and hb:FindFirstChild("Fire") then
                     hb.Fire:InvokeServer()
                 end
             end)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if flags.auto_barrage then
+            pressKey("R")
+            task.wait(0.2)
+            pressKey("E")
+            task.wait(0.2)
+            pressKey("T")
         end
     end
 end)
@@ -160,8 +182,16 @@ FarmTab:CreateToggle({
     CurrentValue = false,
     Flag = "inf_hamon",
     Callback = function(v)
+        flags.inf_hamon = v
         getgenv().InfHamon = v
     end,
+})
+
+FarmTab:CreateToggle({
+    Name = "Auto Barrage + Chop",
+    CurrentValue = false,
+    Flag = "auto_barrage",
+    Callback = function(v) flags.auto_barrage = v end,
 })
 
 local itemList = {}
